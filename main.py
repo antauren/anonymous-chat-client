@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from tkinter import messagebox
 
+import anyio
 import async_timeout
 from dotenv import load_dotenv
 
@@ -26,6 +27,13 @@ async def main(account_hash):
     queues_names = 'messages', 'sending', 'status_updates', 'saving', 'watchdog'
     queues = {queue_name: asyncio.Queue() for queue_name in queues_names}
 
+    await asyncio.gather(
+        gui.draw(queues['messages'], queues['sending'], queues['status_updates']),
+        handle_connection(queues, account_hash),
+    )
+
+
+async def handle_connection(queues, account_hash):
     queues['watchdog'].put_nowait('Connection is alive. Source: Prompt before auth')
 
     async with open_asyncio_connection(HOST, WRITE_PORT) as rw_descriptor:
@@ -49,13 +57,12 @@ async def main(account_hash):
     nickname = gui.NicknameReceived(account_dict['nickname'])
     queues['status_updates'].put_nowait(nickname)
 
-    await asyncio.gather(
-        gui.draw(queues['messages'], queues['sending'], queues['status_updates']),
-        read_msgs(HOST, READ_PORT, queues),
-        save_messages(HISTORY_FILE, queues['saving']),
-        send_msgs(HOST, WRITE_PORT, queues, account_hash),
-        watch_for_connection(queues['watchdog']),
-    )
+    async with anyio.create_task_group() as tg:
+
+        await tg.spawn(read_msgs, HOST, READ_PORT, queues)
+        await tg.spawn(save_messages, HISTORY_FILE, queues['saving'])
+        await tg.spawn(send_msgs, HOST, WRITE_PORT, queues, account_hash)
+        await tg.spawn(watch_for_connection, queues['watchdog'])
 
 
 async def watch_for_connection(queue):
@@ -71,6 +78,7 @@ async def watch_for_connection(queue):
             if cm.expired:
                 watchdog_logger.info('{}s timeout is elapsed'.format(timeout_seconds))
                 queue.put_nowait('{}s timeout is elapsed'.format(timeout_seconds))
+                raise ConnectionError
 
 
 async def authorise(reader, writer, account_hash):
