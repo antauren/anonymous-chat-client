@@ -34,35 +34,36 @@ async def main(account_hash):
 
 
 async def handle_connection(queues, account_hash):
-    queues['watchdog'].put_nowait('Connection is alive. Source: Prompt before auth')
+    while True:
+        queues['watchdog'].put_nowait('Connection is alive. Source: Prompt before auth')
 
-    async with open_asyncio_connection(HOST, WRITE_PORT) as rw_descriptor:
+        async with open_asyncio_connection(HOST, WRITE_PORT) as rw_descriptor:
 
-        reader, writer = rw_descriptor
+            reader, writer = rw_descriptor
 
-        await reader.readline()
+            await reader.readline()
 
-        try:
-            account_dict = await authorise(reader, writer, account_hash)
-        except InvalidToken:
-            messagebox.showinfo("Ошибка авторизации", "Проверьте токен, сервер его не узнал.")
+            try:
+                account_dict = await authorise(reader, writer, account_hash)
+            except InvalidToken:
+                messagebox.showinfo("Ошибка авторизации", "Проверьте токен, сервер его не узнал.")
 
-    queues['watchdog'].put_nowait('Connection is alive. Source: Authorization done')
+        queues['watchdog'].put_nowait('Connection is alive. Source: Authorization done')
 
-    queues['messages'].put_nowait('Выполнена авторизация. Пользователь {}.\n'.format(account_dict['nickname']))
+        queues['messages'].put_nowait('Выполнена авторизация. Пользователь {}.\n'.format(account_dict['nickname']))
 
-    loaded_messages = read_file(HISTORY_FILE)
-    queues['messages'].put_nowait(loaded_messages)
+        loaded_messages = read_file(HISTORY_FILE)
+        queues['messages'].put_nowait(loaded_messages)
 
-    nickname = gui.NicknameReceived(account_dict['nickname'])
-    queues['status_updates'].put_nowait(nickname)
+        nickname = gui.NicknameReceived(account_dict['nickname'])
+        queues['status_updates'].put_nowait(nickname)
 
-    async with anyio.create_task_group() as tg:
+        async with anyio.create_task_group() as tg:
 
-        await tg.spawn(read_msgs, HOST, READ_PORT, queues)
-        await tg.spawn(save_messages, HISTORY_FILE, queues['saving'])
-        await tg.spawn(send_msgs, HOST, WRITE_PORT, queues, account_hash)
-        await tg.spawn(watch_for_connection, queues['watchdog'])
+            await tg.spawn(read_msgs, HOST, READ_PORT, queues)
+            await tg.spawn(save_messages, HISTORY_FILE, queues['saving'])
+            await tg.spawn(send_msgs, HOST, WRITE_PORT, queues, account_hash)
+            await tg.spawn(watch_for_connection, queues['watchdog'])
 
 
 async def watch_for_connection(queue):
