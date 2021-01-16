@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import socket
 from datetime import datetime
 from tkinter import messagebox
 
@@ -31,6 +32,18 @@ async def main(account_hash):
         gui.draw(queues['messages'], queues['sending'], queues['status_updates']),
         handle_connection(queues, account_hash),
     )
+
+
+async def ping_pong(reader, writer):
+    while True:
+        try:
+            async with async_timeout.timeout(10):
+                writer.write('\n'.encode())
+                await reader.readline()
+            await asyncio.sleep(2)
+        except socket.gaierror:
+            watchdog_logger.info('socket.gaierror')
+            raise ConnectionError('socket.gaierror (no internet connection)')
 
 
 async def handle_connection(queues, account_hash):
@@ -64,6 +77,7 @@ async def handle_connection(queues, account_hash):
             await tg.spawn(save_messages, HISTORY_FILE, queues['saving'])
             await tg.spawn(send_msgs, HOST, WRITE_PORT, queues, account_hash)
             await tg.spawn(watch_for_connection, queues['watchdog'])
+            await tg.spawn(ping_pong, reader, writer)
 
 
 async def watch_for_connection(queue):
