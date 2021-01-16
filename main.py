@@ -28,10 +28,9 @@ async def main(account_hash):
     queues_names = 'messages', 'sending', 'status_updates', 'saving', 'watchdog'
     queues = {queue_name: asyncio.Queue() for queue_name in queues_names}
 
-    await asyncio.gather(
-        gui.draw(queues['messages'], queues['sending'], queues['status_updates']),
-        handle_connection(queues, account_hash),
-    )
+    async with anyio.create_task_group() as tg:
+        await tg.spawn(gui.draw, queues['messages'], queues['sending'], queues['status_updates'])
+        await tg.spawn(handle_connection, queues, account_hash)
 
 
 async def ping_pong(reader, writer):
