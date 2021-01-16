@@ -28,9 +28,12 @@ async def main(account_hash):
     queues_names = 'messages', 'sending', 'status_updates', 'saving', 'watchdog'
     queues = {queue_name: asyncio.Queue() for queue_name in queues_names}
 
-    async with anyio.create_task_group() as tg:
-        await tg.spawn(gui.draw, queues['messages'], queues['sending'], queues['status_updates'])
-        await tg.spawn(handle_connection, queues, account_hash)
+    try:
+        async with anyio.create_task_group() as tg:
+            await tg.spawn(gui.draw, queues['messages'], queues['sending'], queues['status_updates'])
+            await tg.spawn(handle_connection, queues, account_hash)
+    except gui.TkAppClosed:
+        pass
 
 
 async def ping_pong(reader, writer):
@@ -150,4 +153,7 @@ if __name__ == '__main__':
     load_dotenv()
     account_hash_ = os.getenv('TOKEN')
 
-    asyncio.run(main(account_hash_))
+    try:
+        asyncio.run(main(account_hash_))
+    except KeyboardInterrupt:
+        pass
