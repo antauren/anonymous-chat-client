@@ -151,7 +151,7 @@ async def read_msgs(host, port, queues):
 
 if __name__ == '__main__':
     load_dotenv()
-    account_hash_ = os.getenv('TOKEN')
+    account_hash_ = os.getenv('CHAT_TOKEN')
 
     try:
         asyncio.run(main(account_hash_))
