@@ -113,13 +113,8 @@ async def authorise(reader, writer, account_hash):
 
 
 async def send_msgs(host, port, queues, account_hash):
-    state = gui.SendingConnectionStateChanged
-
-    queues['status_updates'].put_nowait(state.INITIATED)
-
     while True:
         message = await queues['sending'].get()
-        queues['status_updates'].put_nowait(state.ESTABLISHED)
         queues['watchdog'].put_nowait('Connection is alive. Source: Message sent')
 
         await write_to_chat(host, port, account_hash, message)
